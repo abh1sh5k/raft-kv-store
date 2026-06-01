@@ -1,0 +1,23 @@
+syntax = "proto3";
+package common;
+
+enum Operation {
+  PUT = 0;
+  DELETE = 1;
+  NOOP = 2;
+}
+
+message Command {
+  Operation operation = 1;
+
+  string key = 2;
+
+  string value = 3;
+}
+
+message LogEntry {
+  int64 term = 1;
+  int64 index = 2;
+
+  Command command = 3;
+}
