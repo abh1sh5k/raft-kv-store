@@ -1,30 +1,23 @@
 package org.abhishek;
 
-import raft.Raft;
-import common.Common;
+import org.abhishek.entity.RaftNode;
+import java.util.Collections;
 
 public class Main {
-
     public static void main(String[] args) {
+        System.out.println("[DIAGNOSTIC 1] Inside Main method start.");
+        try {
+            RaftNode node = new RaftNode(9999, Collections.emptyList());
 
+            System.out.println("[DIAGNOSTIC 2] About to invoke node.start().");
+            node.start();
+
+            System.out.println("[DIAGNOSTIC 5] node.start() has finished executing!");
+
+        } catch (Exception e) {
+            System.out.println("[DIAGNOSTIC ERROR] Caught exception in Main:");
+            e.printStackTrace();
+        }
+        System.out.println("[DIAGNOSTIC 6] Reached very end of Main method. JVM will now exit!");
     }
 }
-
-/*
-
-Dir Structure
-- Raft
-    - RaftServer
-    - RaftClient
-- Node
-    - RaftNode
-
-- RaftNode will create the connections
-- It will have the peer list
-- It will receive the connection requests
-- Node will have the role defined and it will trigger the raft service accordingly
-- For different role we will have different responses each for different APIs call. Let say we receive the KV store
-  requests from the client we will send the output based on the role.
-  Also I want to integrate different functionality based on the role assigned, in an elegant way.
-
- */
