@@ -9,6 +9,7 @@ package org.abhishek.services;
 
 import io.grpc.stub.StreamObserver;
 import kvstore.*;
+import org.abhishek.State.State;
 import org.abhishek.entity.DeleteTask;
 import org.abhishek.entity.Entry;
 import org.abhishek.entity.PutTask;
@@ -23,26 +24,31 @@ public class KvstoreService extends kvstoreGrpc
 
     private final RaftNode raftNode;
     private final KvStoreMachine kvStoreMachine;
-    private final RaftService raftService;
+    private final State raftState;
+
     // Add KvStoreMachine object and use dependency injection in this
 
     public KvstoreService(RaftNode raftNode)
     {
         this.raftNode = raftNode;
+        this.raftState = raftNode.getRaftState();
         this.kvStoreMachine = raftNode.getKvStoreMachine();
-        this.raftService = new RaftService(raftNode);
     }
 
     public void addEntriestoKVmachine(Entry entry) throws InterruptedException {
             kvStoreMachine.addEntryToQueue(entry);
     }
 
-    public void appendEntriesToFollowers()
-    {
-
-    }
     @Override
     public void put(PutRequest request, StreamObserver<PutResponse> responseObserver) {
+
+        /*
+            Handle Client Requests
+            // Based on role
+        */
+        // Trigger the append entry part in the state pattern
+        raftState.onEntryAdd();
+
         CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
         Entry entry = new PutTask(request.getKey(), request.getValue(), completableFuture);
         try {
@@ -57,6 +63,12 @@ public class KvstoreService extends kvstoreGrpc
 
     @Override
     public void delete(DeleteRequest request, StreamObserver<DeleteResponse> responseObserver) {
+
+        /*
+            Handle Clients Requests Based on Role
+
+        */
+        raftState.onEntryAdd();
         CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
         Entry entry = new DeleteTask(request.getKey(), completableFuture);
         try {

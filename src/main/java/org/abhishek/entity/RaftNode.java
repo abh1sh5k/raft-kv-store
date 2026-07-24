@@ -2,6 +2,8 @@ package org.abhishek.entity;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import org.abhishek.State.FollowerState;
+import org.abhishek.State.State;
 import org.abhishek.kvstore.KvStoreMachine;
 import org.abhishek.services.KvstoreService;
 import org.abhishek.services.RaftService;
@@ -25,17 +27,35 @@ public class RaftNode{
     private long currentTerm = 0;
     private Server grpcServer;
     private final LinkedBlockingQueue<Entry> logQueue;
+    final State raftState;
 
     public RaftNode(int port, List<Peer> peers)
     {
-        id =counter++;
+        id = counter++;
         this.port = port;
         this.peers = peers;
         this.kvStore = new HashMap<>();
         this.role = Role.FOLLOWER;
+        this.raftState = new FollowerState(this);
         this.logQueue = new LinkedBlockingQueue<>(25);
         this.kvStoreMachine = new KvStoreMachine(this.kvStore, this.logQueue);
 
+    }
+
+    public State getRaftState()
+    {
+        return raftState;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    // Should I store the State in Node only and use that to trigger the from role
+    public void transitionTo(State from, State to)
+    {
+        from.onExitState();
+        to.onEnterState();
     }
 
     public Map<String, String> getKvStore() { return this.kvStore; }
@@ -55,6 +75,7 @@ public class RaftNode{
         System.out.println("[BOOT] STEP 2: Binding gRPC Server Service Interfaces...");
         Server grpcServer = ServerBuilder.forPort(this.port)
                 .addService(new KvstoreService(this))
+                .addService(new RaftService(this))
                 .build();
 
         System.out.println("[BOOT] STEP 3: Initializing Netty Network Socket Listener...");

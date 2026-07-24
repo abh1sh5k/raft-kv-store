@@ -68,6 +68,4 @@ public class KvStoreMachine implements Runnable{
     public void addEntryToQueue(Entry entry) throws InterruptedException {
         logQueue.put(entry);
     }
-
-
 }
