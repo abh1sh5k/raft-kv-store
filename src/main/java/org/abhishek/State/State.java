@@ -1,6 +1,12 @@
 package org.abhishek.State;
 
+import common.LogEntry;
+import org.abhishek.entity.Cmd;
+import org.abhishek.entity.Command;
 import org.abhishek.entity.RaftNode;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public interface State{
 
@@ -8,10 +14,11 @@ public interface State{
 
     public void onExitState();
 
-    public void onEntryAdd();
+    public boolean onAppendEntry(long term, long leaderId, long prevLogTerm, long prevLogIndex, List<LogEntry> entries, long leaderCommit);
 
-    public void onRequestVote();
+    public boolean onRequestVote(long logIndex, long lastTerm);
 
+    public CompletableFuture<Boolean> handleClientRequest(Command cmd);
 
 
 }

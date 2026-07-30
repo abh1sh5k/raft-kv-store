@@ -7,58 +7,45 @@
 */
 package org.abhishek.services;
 
+import common.Operation;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import kvstore.*;
 import org.abhishek.State.State;
-import org.abhishek.entity.DeleteTask;
-import org.abhishek.entity.Entry;
-import org.abhishek.entity.PutTask;
+import org.abhishek.entity.Cmd;
+import org.abhishek.entity.Command;
 import org.abhishek.entity.RaftNode;
 import org.abhishek.kvstore.KvStoreMachine;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class KvstoreService extends kvstoreGrpc
 
         .kvstoreImplBase {
 
-    private final RaftNode raftNode;
-    private final KvStoreMachine kvStoreMachine;
-    private final State raftState;
+    private State raftState;
 
     // Add KvStoreMachine object and use dependency injection in this
 
-    public KvstoreService(RaftNode raftNode)
+    public KvstoreService(State raftState)
     {
-        this.raftNode = raftNode;
-        this.raftState = raftNode.getRaftState();
-        this.kvStoreMachine = raftNode.getKvStoreMachine();
-    }
-
-    public void addEntriestoKVmachine(Entry entry) throws InterruptedException {
-            kvStoreMachine.addEntryToQueue(entry);
+        this.raftState = raftState;
     }
 
     @Override
     public void put(PutRequest request, StreamObserver<PutResponse> responseObserver) {
 
-        /*
-            Handle Client Requests
-            // Based on role
-        */
-        // Trigger the append entry part in the state pattern
-        raftState.onEntryAdd();
+        Command cmd = new Command(request.getKey(), request.getValue());
+        CompletableFuture<Boolean> consensusFuture = raftState.handleClientRequest(cmd);
 
-        CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
-        Entry entry = new PutTask(request.getKey(), request.getValue(), completableFuture);
-        try {
-            kvStoreMachine.addEntryToQueue(entry);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        PutResponse response = PutResponse.newBuilder().setSuccess(true).build();
-        handleAsyncResponse(completableFuture, responseObserver, response);
+        consensusFuture.thenAccept(success -> {
+            responseObserver.onNext(PutResponse.newBuilder().setSuccess(true).build());
+            responseObserver.onCompleted();
+        }).exceptionally(ex -> {
+            responseObserver.onError(Status.INTERNAL.withDescription(ex.getMessage()).asException());
+            return null;
+        });
     }
 
     @Override
@@ -68,33 +55,15 @@ public class KvstoreService extends kvstoreGrpc
             Handle Clients Requests Based on Role
 
         */
-        raftState.onEntryAdd();
-        CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
-        Entry entry = new DeleteTask(request.getKey(), completableFuture);
-        try {
-            kvStoreMachine.addEntryToQueue(entry);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        Command cmd = new Command(request.getKey());
+        CompletableFuture<Boolean> consensusFuture = raftState.handleClientRequest(cmd);
 
-        DeleteResponse response = DeleteResponse.newBuilder().setSuccess(true).build();
-        handleAsyncResponse(completableFuture, responseObserver, response);
-    }
-
-    public <T> void handleAsyncResponse(CompletableFuture<Boolean> completableFuture, StreamObserver<T> responseObserver, T responseInstance) {
-        completableFuture.whenComplete((success, ex) -> {
-            if (ex != null) {
-                responseObserver.onError(
-                        io.grpc.Status.NOT_FOUND.withDescription(ex.getMessage()).asRuntimeException()
-                );
-                return;
-            }
-            if (success) {
-                responseObserver.onNext(responseInstance);
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(io.grpc.Status.INTERNAL.asRuntimeException());
-            }
+        consensusFuture.thenAccept(success -> {
+            responseObserver.onNext(DeleteResponse.newBuilder().setSuccess(true).build());
+            responseObserver.onCompleted();
+        }).exceptionally(ex -> {
+            responseObserver.onError(Status.INTERNAL.withDescription(ex.getMessage()).asException());
+            return null;
         });
     }
 }

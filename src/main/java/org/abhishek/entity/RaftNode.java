@@ -1,5 +1,6 @@
 package org.abhishek.entity;
 
+import common.LogEntry;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import org.abhishek.State.FollowerState;
@@ -10,6 +11,7 @@ import org.abhishek.services.RaftService;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class RaftNode{
@@ -24,10 +26,16 @@ public class RaftNode{
     private List<Peer> peers;
     private Role role;
 
-    private long currentTerm = 0;
+    private volatile long currentTerm = 0;
+    private volatile long lastLogOffset = 0;
+    private volatile long lastCommittedOffset = 0;
     private Server grpcServer;
-    private final LinkedBlockingQueue<Entry> logQueue;
-    final State raftState;
+    private final ConcurrentHashMap<Long, Command> logQueue;
+    private State raftState;
+
+    public long getCurrentTerm() {
+        return currentTerm;
+    }
 
     public RaftNode(int port, List<Peer> peers)
     {
@@ -37,14 +45,26 @@ public class RaftNode{
         this.kvStore = new HashMap<>();
         this.role = Role.FOLLOWER;
         this.raftState = new FollowerState(this);
-        this.logQueue = new LinkedBlockingQueue<>(25);
-        this.kvStoreMachine = new KvStoreMachine(this.kvStore, this.logQueue);
+        this.logQueue = new ConcurrentHashMap<>();
+        this.kvStoreMachine = new KvStoreMachine(this.kvStore, this.logQueue, this.lastCommittedOffset);
 
+    }
+
+    public long getLastLogOffset() {
+        return lastLogOffset;
+    }
+
+    public long getCommittedOffset() {
+        return lastCommittedOffset;
     }
 
     public State getRaftState()
     {
         return raftState;
+    }
+
+    public void setRaftState(State raftState) {
+        this.raftState = raftState;
     }
 
     public void setRole(Role role) {
@@ -55,11 +75,12 @@ public class RaftNode{
     public void transitionTo(State from, State to)
     {
         from.onExitState();
+        setRaftState(to);
         to.onEnterState();
     }
 
     public Map<String, String> getKvStore() { return this.kvStore; }
-    public LinkedBlockingQueue<Entry> getLogQueue() { return logQueue; }
+    public ConcurrentHashMap<Integer, Command> getLogQueue() { return logQueue; }
     public KvStoreMachine getKvStoreMachine() { return kvStoreMachine; }
 
     public void start() throws Exception {
@@ -74,7 +95,7 @@ public class RaftNode{
 
         System.out.println("[BOOT] STEP 2: Binding gRPC Server Service Interfaces...");
         Server grpcServer = ServerBuilder.forPort(this.port)
-                .addService(new KvstoreService(this))
+                .addService(new KvstoreService(this.raftState))
                 .addService(new RaftService(this))
                 .build();
 
