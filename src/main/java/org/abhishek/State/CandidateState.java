@@ -71,7 +71,7 @@ public class CandidateState implements State{
     }
 
     @Override
-    public boolean onRequestVote(long logIndex, long lastTerm)
+    public boolean onRequestVote(long term, long logIndex, long lastTerm)
     {
         return false;
     }

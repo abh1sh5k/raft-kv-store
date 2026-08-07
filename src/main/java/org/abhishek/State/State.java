@@ -16,7 +16,7 @@ public interface State{
 
     public boolean onAppendEntry(long term, long leaderId, long prevLogTerm, long prevLogIndex, List<LogEntry> entries, long leaderCommit);
 
-    public boolean onRequestVote(long logIndex, long lastTerm);
+    public boolean onRequestVote(long term, long logIndex, long lastTerm);
 
     public CompletableFuture<Boolean> handleClientRequest(Command cmd);
 

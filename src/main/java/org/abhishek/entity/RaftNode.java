@@ -29,8 +29,9 @@ public class RaftNode{
     private volatile long currentTerm = 0;
     private volatile long lastLogOffset = 0;
     private volatile long lastCommittedOffset = 0;
+    private volatile long lastOffsetTerm = 0;
     private Server grpcServer;
-    private final ConcurrentHashMap<Long, Command> logQueue;
+    private final ConcurrentHashMap<Long, LogEntries> logQueue;
     private State raftState;
 
     public long getCurrentTerm() {
@@ -54,8 +55,16 @@ public class RaftNode{
         return lastLogOffset;
     }
 
+    public long getLastOffsetTerm() {
+        return lastOffsetTerm;
+    }
+
     public long getCommittedOffset() {
         return lastCommittedOffset;
+    }
+
+    public void setCommittedOffset(long offset) {
+        lastCommittedOffset = offset ;
     }
 
     public State getRaftState()
@@ -80,7 +89,7 @@ public class RaftNode{
     }
 
     public Map<String, String> getKvStore() { return this.kvStore; }
-    public ConcurrentHashMap<Integer, Command> getLogQueue() { return logQueue; }
+    public ConcurrentHashMap<Long, LogEntries> getLogQueue() { return logQueue; }
     public KvStoreMachine getKvStoreMachine() { return kvStoreMachine; }
 
     public void start() throws Exception {

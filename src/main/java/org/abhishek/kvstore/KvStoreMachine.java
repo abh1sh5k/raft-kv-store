@@ -2,6 +2,7 @@ package org.abhishek.kvstore;
 
 import org.abhishek.entity.Cmd;
 import org.abhishek.entity.Command;
+import org.abhishek.entity.LogEntries;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,13 +11,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class KvStoreMachine implements Runnable{
 
     private final Map<String, String> kvStore;
-    private final ConcurrentHashMap<Long, Command> logQueue;
+    private final ConcurrentHashMap<Long, LogEntries> logQueue;
     private volatile boolean running = true;
     private volatile long lastAppliedLog;
     private volatile long lastCommittedOffset;
 
 
-    public KvStoreMachine(Map<String, String> kvStore, ConcurrentHashMap<Long, Command> logQueue, long lastCommittedOffset)
+    public KvStoreMachine(Map<String, String> kvStore, ConcurrentHashMap<Long, LogEntries> logQueue, long lastCommittedOffset)
     {
         this.kvStore = kvStore;
         this.logQueue = logQueue;
@@ -32,7 +33,7 @@ public class KvStoreMachine implements Runnable{
             if(lastAppliedLog < lastCommittedOffset)
             {
             lastAppliedLog = lastAppliedLog + 1;
-            Command entry = logQueue.get(lastAppliedLog);
+            Command entry = logQueue.get(lastAppliedLog).command();
             switch(entry.cmd()) {
                 case PUT -> {
                     System.out.println("State BEFORE: " + kvStore);

@@ -1,13 +1,14 @@
 package org.abhishek.State;
 
 import common.LogEntry;
-import org.abhishek.entity.Cmd;
-import org.abhishek.entity.Command;
-import org.abhishek.entity.RaftNode;
-import org.abhishek.entity.Role;
+import common.Operation;
+import org.abhishek.entity.*;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.*;
+
+
 
 public class FollowerState implements State{
 
@@ -17,15 +18,22 @@ public class FollowerState implements State{
     private boolean isCurrentStateValid;
     private long lastCommittedOffset;
     private long currentTerm;
-    private long logOffset;
+    private long lastLogOffset;
+    private long lastOffsetTerm;
+    private final ConcurrentHashMap<Long, LogEntries> logQueue;
+    private HashSet<Long> votedFor;
 
     public FollowerState(RaftNode raftNode)
     {
+        this.votedFor = new HashSet<>();
         this.raftNode = raftNode;
         this.lastCommittedOffset = raftNode.getLastLogOffset();
         this.currentTerm = raftNode.getCurrentTerm();
-        this.logOffset = raftNode.getLastLogOffset();
+        this.lastLogOffset = raftNode.getLastLogOffset();
+        this.lastOffsetTerm = raftNode.getLastOffsetTerm();
+        this.logQueue = raftNode.getLogQueue();
         isCurrentStateValid = true;
+
     }
 
     @Override
@@ -62,31 +70,55 @@ public class FollowerState implements State{
 
     }
 
-    private void addEntry(List<LogEntry> entries)
+    private void addEntry(List<LogEntry> entries, long prevLogIndex)
     {
+        //logQueue.tailMap(prevLogIndex, false).clear()
         for(LogEntry log: entries)
         {
+            Cmd cmd =null;
+            if (log.getCommand().getOperation() == Operation.PUT){
+            cmd = Cmd.PUT;
+            }
+            else if (log.getCommand().getOperation() == Operation.DELETE)
+            {
+                cmd = Cmd.DELETE;
+            }
+            else if(log.getCommand().getOperation() == Operation.NOOP){
+                continue;
+            }
 
+            Command command = new Command
+                    (cmd, log.getCommand().getKey(), log.getCommand().getValue());
+            logQueue.put(log.getIndex(), new LogEntries(log.getTerm(), command));
+            lastLogOffset = log.getIndex();
+            lastOffsetTerm = log.getTerm();
         }
     }
 
     @Override
-    public boolean onAppendEntry(long term, long leaderId, long prevLogTerm, long prevLogIndex, List<LogEntry> entries, long leaderCommit)
-    {
+    public boolean onAppendEntry(long term, long leaderId, long prevLogTerm, long prevLogIndex, List<LogEntry> entries, long leaderCommit) {
 
-        if(currentTerm > prevLogTerm)
+        if (term < currentTerm)
         {
             return false;
         }
         else {
             currentTerm = term;
-            if(prevLogIndex==logOffset)
+            if((logQueue.containsKey(prevLogIndex) && logQueue.get(prevLogIndex).term() == prevLogTerm) || prevLogIndex==0)
             {
-                addEntry(entries);
+                resetElectionTimer();
+                if(!entries.isEmpty()){
+                    addEntry(entries, prevLogIndex);
+                    if (leaderCommit > raftNode.getCommittedOffset()) {
+                        long lastNewEntryIndex = entries.isEmpty() ? prevLogIndex : entries.getLast().getIndex();
+                        raftNode.setCommittedOffset(Math.min(leaderCommit, lastNewEntryIndex));
+                    }
+                }
                 return true;
             }
             return false;
         }
+
 
     }
 
@@ -96,18 +128,30 @@ public class FollowerState implements State{
     }
 
     @Override
-    public boolean onRequestVote(long logIndex, long lastTerm)
+    public boolean onRequestVote(long term, long logIndex, long lastTerm)
     {
-        if(lastTerm == currentTerm)
+        if(votedFor.contains(term)){
+            return false;
+        }
+
+        if(term > currentTerm)
+            currentTerm = term;
+        else return false;
+
+        if(lastOffsetTerm == lastTerm)
         {
-            if(logIndex >= lastCommittedOffset)
+            if (logIndex >= lastLogOffset){
+                resetElectionTimer();
+                votedFor.add(term);
                 return true;
-            else
-            {
+            }
+            else {
                 return false;
             }
         }
-        else if (lastTerm > currentTerm){
+        else if (lastOffsetTerm < lastTerm){
+            resetElectionTimer();
+            votedFor.add(term);
             return true;
         }
         else return false;
@@ -118,6 +162,16 @@ public class FollowerState implements State{
 
 
 /*
+Task to be done
+
+- Create proper variable for the prev data (term and Offset) and proper owner for this
+- RequestVote
+    - Follower
+        - Increase the currentTerm
+        - compare with prevLogTerm in their queue and their prevLogOffset
+    - AppendEntry
+        - compare within Logs info from provided prevleaderLog data one and take it from there
+
 
 
 

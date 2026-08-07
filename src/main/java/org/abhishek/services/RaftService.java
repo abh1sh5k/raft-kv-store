@@ -26,7 +26,7 @@ public class RaftService extends RaftServiceGrpc.RaftServiceImplBase{
         //requestVote as ServerProcessing -> Candidate votes for himself, Follower & Leader check the term if its greater than current Term it will cast its vote.
 
 
-        boolean voteResponse = raftState.onRequestVote(request.getLastLogIndex(), request.getLastLogTerm());
+        boolean voteResponse = raftState.onRequestVote(request.getTerm(), request.getLastLogIndex(), request.getLastLogTerm());
 
         responseObserver.onNext(VoteResponse.newBuilder().setVoteGranted(voteResponse).setTerm(request.getTerm()).build());
         responseObserver.onCompleted();
@@ -50,6 +50,7 @@ public class RaftService extends RaftServiceGrpc.RaftServiceImplBase{
 
         boolean response = raftState.onAppendEntry(term, leaderId, prevLogTerm, prevLogIndex, entries, leaderCommit);
 
-
+        responseObserver.onNext(AppendEntriesResponse.newBuilder().setSuccess(response).build());
+        responseObserver.onCompleted();
     }
 }
