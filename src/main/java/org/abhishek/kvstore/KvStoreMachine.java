@@ -3,6 +3,7 @@ package org.abhishek.kvstore;
 import org.abhishek.entity.Cmd;
 import org.abhishek.entity.Command;
 import org.abhishek.entity.LogEntries;
+import org.abhishek.entity.RaftNode;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,14 +16,16 @@ public class KvStoreMachine implements Runnable{
     private volatile boolean running = true;
     private volatile long lastAppliedLog;
     private volatile long lastCommittedOffset;
+    private final RaftNode raftNode;
 
 
-    public KvStoreMachine(Map<String, String> kvStore, ConcurrentHashMap<Long, LogEntries> logQueue, long lastCommittedOffset)
+    public KvStoreMachine(Map<String, String> kvStore, ConcurrentHashMap<Long, LogEntries> logQueue, RaftNode raftNode)
     {
         this.kvStore = kvStore;
+        this.raftNode = raftNode;
         this.logQueue = logQueue;
         this.lastAppliedLog = 0;
-        this.lastCommittedOffset = lastCommittedOffset;
+        this.lastCommittedOffset = raftNode.getCommittedOffset();
     }
 
     @Override
@@ -30,6 +33,7 @@ public class KvStoreMachine implements Runnable{
         // Add this explicit diagnostic before the loop even starts to prove the thread is alive!
         System.out.println("====== [CRITICAL BOOT] KVSTOREMACHINE THREAD RUN LOOP IS OFFICIALLY RUNNING ======");
         while(running){
+            lastCommittedOffset = raftNode.getCommittedOffset();
             if(lastAppliedLog < lastCommittedOffset)
             {
             lastAppliedLog = lastAppliedLog + 1;

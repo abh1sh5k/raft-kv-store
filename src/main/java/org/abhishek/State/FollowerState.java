@@ -109,10 +109,10 @@ public class FollowerState implements State{
                 resetElectionTimer();
                 if(!entries.isEmpty()){
                     addEntry(entries, prevLogIndex);
-                    if (leaderCommit > raftNode.getCommittedOffset()) {
-                        long lastNewEntryIndex = entries.isEmpty() ? prevLogIndex : entries.getLast().getIndex();
-                        raftNode.setCommittedOffset(Math.min(leaderCommit, lastNewEntryIndex));
-                    }
+                }
+                if (leaderCommit > raftNode.getCommittedOffset()) {
+                    long lastNewEntryIndex = entries.isEmpty() ? prevLogIndex : entries.getLast().getIndex();
+                    raftNode.setCommittedOffset(Math.min(leaderCommit, lastNewEntryIndex));
                 }
                 return true;
             }

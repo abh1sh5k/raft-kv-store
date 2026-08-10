@@ -38,6 +38,10 @@ public class RaftNode{
         return currentTerm;
     }
 
+    public List<Peer> getPeers() {
+        return peers;
+    }
+
     public RaftNode(int port, List<Peer> peers)
     {
         id = counter++;
@@ -47,8 +51,16 @@ public class RaftNode{
         this.role = Role.FOLLOWER;
         this.raftState = new FollowerState(this);
         this.logQueue = new ConcurrentHashMap<>();
-        this.kvStoreMachine = new KvStoreMachine(this.kvStore, this.logQueue, this.lastCommittedOffset);
+        this.kvStoreMachine = new KvStoreMachine(this.kvStore, this.logQueue, this);
 
+    }
+
+    public void setCurrentTerm(long currentTerm) {
+        this.currentTerm = currentTerm;
+    }
+
+    public int getId() {
+        return id;
     }
 
     public long getLastLogOffset() {
